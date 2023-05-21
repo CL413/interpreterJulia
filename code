@@ -1,0 +1,117 @@
+# Token types
+const TOKEN_ASSIGNMENT = "ASSIGNMENT"
+const TOKEN_IDENTIFIER = "IDENTIFIER"
+const TOKEN_LITERAL = "LITERAL"
+const TOKEN_OPERATOR = "OPERATOR"
+const TOKEN_OPEN_PAREN = "OPEN_PAREN"
+const TOKEN_CLOSE_PAREN = "CLOSE_PAREN"
+const TOKEN_SEMICOLON = "SEMICOLON"
+
+# Regular expressions for token matching
+const PATTERN_ASSIGNMENT = r"\s*=\s*"
+const PATTERN_IDENTIFIER = r"[a-zA-Z_][a-zA-Z0-9_]*"
+const PATTERN_LITERAL = r"0|[1-9][0-9]*"
+const PATTERN_OPERATOR = r"[+\-*]"
+const PATTERN_OPEN_PAREN = r"\("
+const PATTERN_CLOSE_PAREN = r"\)"
+const PATTERN_SEMICOLON = r";"
+
+# Token struct
+struct Token
+    type::String
+    value::String
+end
+
+# Lexer struct
+struct Lexer
+    text::String
+    pos::Int
+    current_char::Union{Char, Nothing}
+end
+
+function Lexer(text::String)
+    pos = 1
+    current_char = length(text) > 0 ? text[pos] : nothing
+    return Lexer(text, pos, current_char)
+end
+
+function advance!(lexer::Lexer)
+    lexer.pos += 1
+    lexer.current_char = lexer.pos <= length(lexer.text) ? lexer.text[lexer.pos] : nothing
+end
+
+function skip_whitespace!(lexer::Lexer)
+    while lexer.current_char !== nothing && isspace(lexer.current_char)
+        advance!(lexer)
+    end
+end
+
+function match(lexer::Lexer, pattern::Regex)
+    match = match(pattern, lexer.text[lexer.pos:end])
+    if match !== nothing
+        matched_text = match.match
+        advance_by!(lexer, matched_text)
+        return matched_text
+    end
+end
+
+function advance_by!(lexer::Lexer, text::String)
+    lexer.pos += length(text)
+    lexer.current_char = lexer.pos <= length(lexer.text) ? lexer.text[lexer.pos] : nothing
+end
+
+function get_next_token(lexer::Lexer)
+    while lexer.current_char !== nothing
+        if isspace(lexer.current_char)
+            skip_whitespace!(lexer)
+            continue
+        end
+
+        if isdigit(lexer.current_char)
+            return match_literal(lexer)
+        end
+
+        if isalpha(lexer.current_char) || lexer.current_char == '_'
+            return match_identifier(lexer)
+        end
+
+        if lexer.current_char == '='
+            return match_assignment(lexer)
+        end
+
+        if lexer.current_char in ('+', '-', '*', '(', ')', ';')
+            return match_operator_or_paren(lexer)
+        end
+
+        throw(SyntaxError("Invalid character: $(lexer.current_char)"))
+    end
+
+    return Token("", "")
+end
+
+function match_literal(lexer::Lexer)
+    literal = match(lexer, r"$PATTERN_LITERAL")
+    return Token(TOKEN_LITERAL, literal)
+end
+
+function match_identifier(lexer::Lexer)
+    identifier = match(lexer, r"$PATTERN_IDENTIFIER")
+    return Token(TOKEN_IDENTIFIER, identifier)
+end
+
+function match_assignment(lexer::Lexer)
+    advance_by!(lexer, "=")
+    return Token(TOKEN_ASSIGNMENT, "=")
+end
+
+function match_operator_or_paren(lexer::Lexer)
+    if lexer.current_char in ('+', '-', '*', '(', ')')
+        operator = lexer.current_char
+        advance!(lexer)
+        return Token(TOKEN_OPERATOR, operator)
+    end
+
+    if lexer.current_char == ';'
+        advance!(lexer)
+        return Token(TOKEN_SEMICOLON, ";")
+
